@@ -107,9 +107,9 @@ def geticsfor(larare):
     weeks = {}
     for week in range(1,53):
         weeks[week] = get_weekdata(week, larare)
-    
+
     gra = [181, 433, 685, 936, 1188]
-    
+
     events = []
     for week in weeks:
         for day in range(5):
@@ -133,7 +133,7 @@ def geticsfor(larare):
                     event["text"] += line["text"] + " "
             if gray["start"]:
                 events.append({"start":gray["start"] ,"end":gray["end"], "date":date, "text":"Gråtid"})
-            print(event,date)
+
 
     today = arrow.utcnow().format('YYYYMMDD')+"T000000Z"
     icsdata = "BEGIN:VCALENDAR"
