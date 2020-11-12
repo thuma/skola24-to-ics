@@ -5,7 +5,10 @@ import bottle
 import json
 from datetime import datetime
 from os import listdir, system, mkdir
-from bottle import route, run, response
+from bottle import route, run, response, post, get, request
+from time import time
+import sqlite3
+conn = sqlite3.connect('attendance.db')
 
 hdata = {
   'Connection': 'keep-alive',
@@ -155,8 +158,29 @@ def geticsfor(larare):
     response.content_type = 'text/calendar; charset=UTF8'
     return icsdata
 
+def addsal(sal, atid):
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS attended
+             (time int, atid text, sal text)''')
+    c.execute("INSERT INTO attended VALUES (?,?,?)", (time(), atid, sal))
+    conn.commit()
+
+def getsal(sal):
+    c = conn.cursor()
+    for row in c.execute('SELECT * FROM attended WHERE sal = ?',(sal,)):
+        print(row)
+
 @route('/schema/<larare>')
 def schema(larare):
     return geticsfor(larare)
+
+@post('/attendance/<sal>')
+def addsal_s(sal):
+    atid = request.forms.get('atid')
+    return addsal(sal, atid)
+
+@get('/attendance/<sal>')
+def getsal_s(sal):
+    return getsal(sal)
 
 run(host='localhost', port=8080)
