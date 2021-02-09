@@ -40,12 +40,12 @@ def get_week(week, larare):
         year = 2021
     else:
         year = 2020
- 
+
     weekrequest = {
         'blackAndWhite': False,
         'customerKey': "",
         'endDate': None,
-        'height': 850,
+        'height': 550,
         'host': "goteborg.skola24.se",
         'periodText': "",
         'privateFreeTextMode': False,
@@ -58,44 +58,25 @@ def get_week(week, larare):
         'startDate': None,
         'unitGuid': "ZmEyYzc4NWQtNzRjOC1mNzE3LTg5MGItOGVjZjExZTJmNGYw",
         'week': week,
-        'width': 1400,
+        'width': 1200,
         'year': year
         }
-    return json.loads(requests.post("https://web.skola24.se/api/render/timetable", headers=hdata, json=weekrequest ).json()["data"]["timetableJson"])
+    data = requests.post("https://web.skola24.se/api/render/timetable", headers=hdata, json=weekrequest ).json()
+    return data["data"]["lessonInfo"]
 
 def tidtexter(textdata):
     return textdata["x"] > 50 and textdata["x"] < 1320 and textdata["y"] > 10
 
 def get_weekdata(week_nr, larare):
-    #71 -- 181 -- 293      323 --  433 -- 538      575 -- 685 -- 796       826 --  936 --  1041      1078 -- 1188 -- 1300
     indata = get_week(week_nr, larare)
     week = [[],[],[],[],[]]
-    for text in indata["textList"]:
-        if tidtexter(text):
-            if text["x"] < 300:
-                week[0].append(text)
-            elif text["x"] < 550:
-                week[1].append(text)
-            elif text["x"] < 800:
-                week[2].append(text)
-            elif text["x"] < 1050:
-                week[3].append(text)
-            else:
-                week[4].append(text)
-
-    def ypos(text):
-        return text['y']
-
-    week[0].sort(key=ypos)
-    week[1].sort(key=ypos)
-    week[2].sort(key=ypos)
-    week[3].sort(key=ypos)
-    week[4].sort(key=ypos)
+    if indata:
+        for event in indata:
+            week[event["dayOfWeekNumber"] - 1].append(event)
     return week
 
 def todate(date, tid):
-    tid = ("0"+tid)[-5:]
-    return  arrow.get(arrow.get(date+"T"+tid+":00").datetime.replace(tzinfo=None), 'Europe/Stockholm').to("UTC").format('YYYYMMDDTHHmmss')+"Z"
+    return  arrow.get(arrow.get(date+"T"+tid).datetime.replace(tzinfo=None), 'Europe/Stockholm').to("UTC").format('YYYYMMDDTHHmmss')+"Z"
 
 def todatestr(week, day):
     if week < 26:
@@ -111,32 +92,21 @@ def geticsfor(larare):
     for week in range(1,53):
         weeks[week] = get_weekdata(week, larare)
 
-    gra = [181, 433, 685, 936, 1188]
-
     events = []
     for week in weeks:
         for day in range(5):
             date = todatestr(week, day+2)
-            gray = {"start":False, "end":False,"date":False}
-            event = {"text":"", "date":date, "start":False}
             for line in weeks[week][day]:
-                if len(line["text"]) > 3 and line["text"][-3] == ":" and gray["start"] and abs(gra[day] - line["x"]) < 40:
-                    gray["end"] = line["text"]
-                elif len(line["text"]) > 3 and line["text"][-3] == ":" and not gray["start"] and abs(gra[day] - line["x"]) < 40:
-                    gray["start"] = line["text"]
-                elif len(line["text"]) > 3 and line["text"][-3] == ":" and not event["start"]:
-                    event["start"] = line["text"]
-                elif len(line["text"]) > 3 and line["text"][-3] == ":" and event["start"]:
-                    event["end"] = line["text"]
-                    events.append(event)
-                    event = { "text":"", "date":date, "start":False}
-                elif "(" in line["text"]:
-                    event["lokal"] = line["text"].split("(")[0].strip()
+                event = {"date":date}
+                event["end"] = line["timeEnd"]
+                event["uid"] = line["guidId"]
+                event["start"] = line["timeStart"]
+                if "texts" in line and line["texts"]:
+                    event["text"] = " ".join(line["texts"])
+                    event["lokal"] = line["texts"][-1]
                 else:
-                    event["text"] += line["text"] + " "
-            if gray["start"]:
-                events.append({"start":gray["start"] ,"end":gray["end"], "date":date, "text":"Gråtid"})
-
+                    event["text"] = "Gråtid"
+                events.append(event)
 
     today = arrow.utcnow().format('YYYYMMDD')+"T000000Z"
     icsdata = "BEGIN:VCALENDAR"
@@ -145,7 +115,7 @@ def geticsfor(larare):
     for event in events:
         icsdata += "\r\nBEGIN:VEVENT"
         icsdata += "\r\nDTSTAMP:"+today
-        icsdata += "\r\nUID:"+todate(event["date"], event["start"])+todate(event["date"], event["end"]) +event["text"].strip().split(" ")[0]
+        icsdata += "\r\nUID:"+event["uid"]+event["date"].replace("-","")
         icsdata += "\r\nSUMMARY:"+event["text"].strip().split(" ")[0]
         icsdata += "\r\nDTSTART:"+todate(event["date"], event["start"])
         icsdata += "\r\nDTEND:"+todate(event["date"], event["end"])
@@ -167,8 +137,8 @@ def addsal(sal, atid):
 
 def getsal(sal):
     c = conn.cursor()
-    for row in c.execute('SELECT * FROM attended WHERE sal = ?',(sal,)):
-        print(row)
+    for row in c.execute('SELECT time, atid FROM attended WHERE sal = ?',(sal,)):
+        yield {"time":int(row[0])*1000,"atid":row[1]}
 
 @route('/schema/<larare>')
 def schema(larare):
@@ -181,6 +151,6 @@ def addsal_s(sal):
 
 @get('/attendance/<sal>')
 def getsal_s(sal):
-    return getsal(sal)
+    return json.dumps({"attended":list(getsal(sal))})
 
 run(host='localhost', port=8080)
