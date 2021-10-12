@@ -37,9 +37,9 @@ def get_key():
 
 def get_week(week, larare):
     if week < 26:
-        year = 2021
+        year = 2022
     else:
-        year = 2020
+        year = 2021
 
     weekrequest = {
         'blackAndWhite': False,
@@ -80,9 +80,9 @@ def todate(date, tid):
 
 def todatestr(week, day):
     if week < 26:
-        year = "2021"
+        year = "2022"
     else:
-        year = "2020"
+        year = "2021"
     return  arrow.get(arrow.get(year+"-W"+("0"+str(week))[-2:]+"-"+str(day)).datetime.replace(tzinfo=None), 'Europe/Stockholm').to("UTC").format('YYYY-MM-DD')
 
 
@@ -101,11 +101,14 @@ def geticsfor(larare):
                 event["end"] = line["timeEnd"]
                 event["uid"] = line["guidId"]
                 event["start"] = line["timeStart"]
-                if "texts" in line and line["texts"]:
+                event["summary"] = ""
+                if line["texts"]:
                     event["text"] = " ".join(line["texts"])
-                    event["lokal"] = line["texts"][-1]
+                    event["lokal"] = line["texts"][2]
+                    event["summary"] = line["texts"][0]
                 else:
                     event["text"] = "Gråtid"
+                    event["summary"] = "Gråtid"
                 events.append(event)
 
     today = arrow.utcnow().format('YYYYMMDD')+"T000000Z"
@@ -116,12 +119,14 @@ def geticsfor(larare):
         icsdata += "\r\nBEGIN:VEVENT"
         icsdata += "\r\nDTSTAMP:"+today
         icsdata += "\r\nUID:"+event["uid"]+event["date"].replace("-","")
-        icsdata += "\r\nSUMMARY:"+event["text"].strip().split(" ")[0]
+        icsdata += "\r\nSUMMARY:"+event["summary"]
         icsdata += "\r\nDTSTART:"+todate(event["date"], event["start"])
         icsdata += "\r\nDTEND:"+todate(event["date"], event["end"])
         if "lokal" in event:
             icsdata += "\r\nLOCATION:"+event["lokal"]
         icsdata += "\r\nDESCRIPTION:"+event["text"].strip()
+        if event["text"] == "Gråtid":
+            icsdata += "\r\nTRANSP:TRANSPARENT"
         icsdata += "\r\nEND:VEVENT"
     icsdata += "\r\nEND:VCALENDAR"
     response.headers["Content-Disposition"] = 'attachment; filename="'+larare+'.ics"'
