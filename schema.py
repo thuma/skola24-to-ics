@@ -145,7 +145,7 @@ def getsal(sal):
     for row in c.execute('SELECT time, atid FROM attended WHERE sal = ?',(sal,)):
         yield {"time":int(row[0])*1000,"atid":row[1]}
 
-@route('/schema/<larare>')
+@route('/<larare>')
 def schema(larare):
     return geticsfor(larare)
 
