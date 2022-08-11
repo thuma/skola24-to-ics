@@ -37,9 +37,9 @@ def get_key():
 
 def get_week(week, larare):
     if week < 26:
-        year = 2022
+        year = 2023
     else:
-        year = 2021
+        year = 2022
 
     weekrequest = {
         'blackAndWhite': False,
@@ -80,9 +80,9 @@ def todate(date, tid):
 
 def todatestr(week, day):
     if week < 26:
-        year = "2022"
+        year = "2023"
     else:
-        year = "2021"
+        year = "2022"
     return  arrow.get(arrow.get(year+"-W"+("0"+str(week))[-2:]+"-"+str(day)).datetime.replace(tzinfo=None), 'Europe/Stockholm').to("UTC").format('YYYY-MM-DD')
 
 
@@ -104,7 +104,10 @@ def geticsfor(larare):
                 event["summary"] = ""
                 if line["texts"]:
                     event["text"] = " ".join(line["texts"])
-                    event["lokal"] = line["texts"][2]
+                    try:
+                      event["lokal"] = line["texts"][2]
+                    except:
+                      event["lokal"] = ""
                     event["summary"] = line["texts"][0]
                 else:
                     event["text"] = "Gråtid"
@@ -133,29 +136,8 @@ def geticsfor(larare):
     response.content_type = 'text/calendar; charset=UTF8'
     return icsdata
 
-def addsal(sal, atid):
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS attended
-             (time int, atid text, sal text)''')
-    c.execute("INSERT INTO attended VALUES (?,?,?)", (time(), atid, sal))
-    conn.commit()
-
-def getsal(sal):
-    c = conn.cursor()
-    for row in c.execute('SELECT time, atid FROM attended WHERE sal = ?',(sal,)):
-        yield {"time":int(row[0])*1000,"atid":row[1]}
-
 @route('/<larare>')
 def schema(larare):
     return geticsfor(larare)
-
-@post('/attendance/<sal>')
-def addsal_s(sal):
-    atid = request.forms.get('atid')
-    return addsal(sal, atid)
-
-@get('/attendance/<sal>')
-def getsal_s(sal):
-    return json.dumps({"attended":list(getsal(sal))})
 
 run(host='localhost', port=8080)
