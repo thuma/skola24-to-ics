@@ -1,41 +1,62 @@
 # -*- coding: utf-8 -*-
+"""
+Shola24 to ICS accessing skola24 data and export it to ics.
+Copyright (C) 2023  Martin Harari Thuresson
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
 import requests
 import arrow
 import bottle
 import json
+from login import login
+import configparser
 from datetime import datetime
 from os import listdir, system, mkdir
 from bottle import route, run, response, post, get, request
 from time import time
-import sqlite3
-conn = sqlite3.connect('attendance.db')
 
-hdata = {
-  'Connection': 'keep-alive',
-  'sec-ch-ua': '"Chromium";v="86", "\"Not\\A;Brand";v="99", "Google Chrome";v="86"',
-  'Accept': 'application/json, text/javascript, */*; q=0.01',
-  'X-Scope': '8a22163c-8662-4535-9050-bc5e1923df48',
-  'X-Requested-With': 'XMLHttpRequest',
-  'sec-ch-ua-mobile': '?0',
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.111 Safari/537.36',
-  'Content-Type': 'application/json',
-  'Origin': 'https://web.skola24.se',
-  'Sec-Fetch-Site': 'same-origin',
-  'Sec-Fetch-Mode': 'cors',
-  'Sec-Fetch-Dest': 'empty',
-  'Referer': 'https://web.skola24.se/timetable/timetable-viewer/goteborg.skola24.se/Lindholmens%20tekniska%20gymnasium/',
-  'Accept-Language': 'sv-SE,sv;q=0.9,en-US;q=0.8,en;q=0.7',
-  'Cookie': 'ASP.NET_SessionId=lg4zfxaklbnb0qvh4nwctfmz'
-}
+config = configparser.ConfigParser()
+config.read('../skola24toics.cfg')
 
-def get_id_for(larare):
-  return requests.post("https://web.skola24.se/api/encrypt/signature", headers=hdata, json={"signature": larare}).json()["data"]["signature"]
+hdata = {'User-Agent':'Mozilla/5.0 (X11; Linux x86_64; rv:108.0) Gecko/20100101 Firefox/108.0',
+    'Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    'Accept-Language':'sv-SE,sv;q=0.8,en-US;q=0.5,en;q=0.3',
+    'Accept-Encoding':'gzip, deflate, br',
+    'Cache-Control': 'no-cache',
+    'Pragma': 'no-cache',
+    'Connection':'keep-alive',
+    'Upgrade-Insecure-Requests':'1',
+    'Sec-Fetch-Dest':'document',
+    'Sec-Fetch-Mode':'navigate',
+    'Sec-Fetch-Site':'none',
+    'Sec-Fetch-User':'1',
+    'Origin' : "https://web.skola24.se",
+    'Referer' : "https://web.skola24.se/portal/start/timetable/timetable-viewer/goteborg.skola24.se/",
+    "X-Requested-With": "XMLHttpRequest",
+    "X-Scope": "8a22163c-8662-4535-9050-bc5e1923df48"
+  }
 
-def get_key():
-  return requests.post("https://web.skola24.se/api/get/timetable/render/key", headers=hdata, json="").json()["data"]["key"]
+def get_id_for(larare, s):
+  singsresp = s.post("https://web.skola24.se/api/encrypt/signature", headers=hdata, json={"signature": larare})
+  return singsresp.json()["data"]["signature"]
+  
+def get_key(s):
+  keyr = s.post("https://web.skola24.se/api/get/timetable/render/key", headers=hdata, json="")
+  return keyr.json()["data"]["key"]
 
-
-def get_week(week, larare):
+def get_week(week, larare, s):
     if week < 26:
         year = 2023
     else:
@@ -50,25 +71,26 @@ def get_week(week, larare):
         'periodText': "",
         'privateFreeTextMode': False,
         'privateSelectionMode': None,
-        'renderKey': get_key(),
+        'renderKey': get_key(s),
         'scheduleDay': 0,
-        'selection': get_id_for(larare),
+        'selection': get_id_for(larare, s),
         'selectionType': 4,
         'showHeader': False,
         'startDate': None,
-        'unitGuid': "ZmEyYzc4NWQtNzRjOC1mNzE3LTg5MGItOGVjZjExZTJmNGYw",
+        'unitGuid': "MzY5M2M0ZGItNDgyOC1hOTVlLWJkYzYtMDJhMzhhNDBjMjFj",
         'week': week,
         'width': 1200,
         'year': year
         }
-    data = requests.post("https://web.skola24.se/api/render/timetable", headers=hdata, json=weekrequest ).json()
+        
+    data = s.post("https://web.skola24.se/api/render/timetable", headers=hdata, json=weekrequest ).json()
     return data["data"]["lessonInfo"]
 
 def tidtexter(textdata):
     return textdata["x"] > 50 and textdata["x"] < 1320 and textdata["y"] > 10
 
-def get_weekdata(week_nr, larare):
-    indata = get_week(week_nr, larare)
+def get_weekdata(week_nr, larare, s):
+    indata = get_week(week_nr, larare, s)
     week = [[],[],[],[],[]]
     if indata:
         for event in indata:
@@ -86,11 +108,11 @@ def todatestr(week, day):
     return  arrow.get(arrow.get(year+"-W"+("0"+str(week))[-2:]+"-"+str(day)).datetime.replace(tzinfo=None), 'Europe/Stockholm').to("UTC").format('YYYY-MM-DD')
 
 
-def geticsfor(larare):
+def geticsfor(larare, s):
 
     weeks = {}
     for week in range(1,53):
-        weeks[week] = get_weekdata(week, larare)
+        weeks[week] = get_weekdata(week, larare, s)
 
     events = []
     for week in weeks:
@@ -138,6 +160,7 @@ def geticsfor(larare):
 
 @route('/<larare>')
 def schema(larare):
-    return geticsfor(larare)
+    s = login(config.get('server', 'user'),config.get('server', 'key'))
+    return geticsfor(larare, s)
 
 run(host='localhost', port=8080)
