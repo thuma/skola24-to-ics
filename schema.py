@@ -28,7 +28,7 @@ from bottle import route, run, response, post, get, request
 from time import time
 
 config = configparser.ConfigParser()
-config.read('../skola24toics.cfg')
+config.read('/etc/skola24toics.cfg')
 
 hdata = {'User-Agent':'Mozilla/5.0 (X11; Linux x86_64; rv:108.0) Gecko/20100101 Firefox/108.0',
     'Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
