@@ -51,16 +51,24 @@ hdata = {'User-Agent':'Mozilla/5.0 (X11; Linux x86_64; rv:108.0) Gecko/20100101 
 def get_id_for(larare, s):
   singsresp = s.post("https://web.skola24.se/api/encrypt/signature", headers=hdata, json={"signature": larare})
   return singsresp.json()["data"]["signature"]
-  
+
 def get_key(s):
   keyr = s.post("https://web.skola24.se/api/get/timetable/render/key", headers=hdata, json="")
   return keyr.json()["data"]["key"]
 
 def get_week(week, larare, s):
-    if week < 26:
-        year = 2023
+
+    if arrow.now().week < 26:
+      htyear = arrow.now().year-1
+      vtyear = arrow.now().year
     else:
-        year = 2022
+      htyear = arrow.now().year
+      vtyear = arrow.now().year+1
+
+    if week < 26:
+        year = vtyear
+    else:
+        year = htyear
 
     weekrequest = {
         'blackAndWhite': False,
